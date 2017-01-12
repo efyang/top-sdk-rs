@@ -8,5 +8,4 @@ links = "topsdk"
 [dependencies]
 
 [build-dependencies]
-libbindgen = "0.1"
 gcc = "0.3"

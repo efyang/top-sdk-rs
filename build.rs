@@ -1,4 +1,3 @@
-extern crate libbindgen;
 extern crate gcc;
 
 fn main() {
@@ -13,12 +12,4 @@ fn main() {
                            "top-sdk/src/TopRequest.c",
                            "top-sdk/src/TopResponse.c",
                            "top-sdk/src/WebUtils.c"]);
-
-    // create bindings
-    let _ = libbindgen::builder()
-        .header("top-sdk/topsdk.h")
-        .use_core()
-        .generate()
-        .unwrap()
-        .write_to_file("src/ffi.rs");
 }
