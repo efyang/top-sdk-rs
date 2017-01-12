@@ -11,7 +11,7 @@
 
 TOP_CPP_START
 
-typedef struct SinlgeMap {
+typedef struct SingleMap {
     int ite;
     int size;
     int total_length;

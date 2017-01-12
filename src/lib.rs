@@ -29,12 +29,12 @@ impl TaobaoClient {
         let session = CString::new(session.as_ref()).unwrap();
         let session_ptr = session.into_raw();
         unsafe {
-            let mut response =
+            let response =
                 TopResponse::from_raw(ffi::top_execute(self.ptr, request.ptr(), session_ptr));
             CString::from_raw(session_ptr);
 
             if response.code() == 0 {
-                Ok(TopResponseIterator::from_response(&mut response))
+                Ok(TopResponseIterator::from_response(response))
             } else {
                 Err(())
             }
@@ -101,17 +101,24 @@ impl Drop for TopRequest {
     }
 }
 
-pub struct TopResponse {
+pub struct TopResponse<'a> {
     ptr: ffi::pTopResponse,
+    marker: ::std::marker::PhantomData<&'a str>,
 }
 
-impl TopResponse {
-    pub fn new() -> TopResponse {
-        TopResponse { ptr: unsafe { ffi::alloc_top_response() } }
+impl<'a> TopResponse<'a> {
+    pub fn new() -> TopResponse<'a> {
+        TopResponse {
+            ptr: unsafe { ffi::alloc_top_response() },
+            marker: ::std::marker::PhantomData,
+        }
     }
 
-    fn from_raw(raw: ffi::pTopResponse) -> TopResponse {
-        TopResponse { ptr: raw }
+    fn from_raw(raw: ffi::pTopResponse) -> TopResponse<'a> {
+        TopResponse {
+            ptr: raw,
+            marker: ::std::marker::PhantomData,
+        }
     }
 
     fn code(&self) -> ::std::os::raw::c_int {
@@ -123,7 +130,15 @@ impl TopResponse {
     }
 }
 
-impl Drop for TopResponse {
+impl<'a> IntoIterator for TopResponse<'a> {
+    type Item = (&'a str, &'a str);
+    type IntoIter = TopResponseIterator<'a>;
+    fn into_iter(self) -> TopResponseIterator<'a> {
+        TopResponseIterator::from_response(self)
+    }
+}
+
+impl<'a> Drop for TopResponse<'a> {
     fn drop(&mut self) {
         unsafe {
             ffi::destroy_top_response(self.ptr);
@@ -137,7 +152,7 @@ pub struct TopResponseIterator<'a> {
 }
 
 impl<'a> TopResponseIterator<'a> {
-    fn from_response(response: &mut TopResponse) -> TopResponseIterator<'a> {
+    fn from_response(mut response: TopResponse) -> TopResponseIterator<'a> {
         TopResponseIterator {
             ptr: unsafe { ffi::init_response_iterator(response.ptr()) },
             marker: ::std::marker::PhantomData,

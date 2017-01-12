@@ -2,7 +2,7 @@
 
 #[repr(C)]
 #[derive(Debug, Copy)]
-pub struct SinlgeMap {
+pub struct SingleMap {
     pub ite: ::std::os::raw::c_int,
     pub size: ::std::os::raw::c_int,
     pub total_length: ::std::os::raw::c_int,
@@ -10,14 +10,14 @@ pub struct SinlgeMap {
     pub values: *mut *mut ::std::os::raw::c_char,
 }
 #[test]
-fn bindgen_test_layout_SinlgeMap() {
-    assert_eq!(::core::mem::size_of::<SinlgeMap>() , 32usize);
-    assert_eq!(::core::mem::align_of::<SinlgeMap>() , 8usize);
+fn bindgen_test_layout_SingleMap() {
+    assert_eq!(::core::mem::size_of::<SingleMap>() , 32usize);
+    assert_eq!(::core::mem::align_of::<SingleMap>() , 8usize);
 }
-impl Clone for SinlgeMap {
+impl Clone for SingleMap {
     fn clone(&self) -> Self { *self }
 }
-pub type top_map = SinlgeMap;
+pub type top_map = SingleMap;
 #[repr(C)]
 #[derive(Debug, Copy)]
 pub struct TopRequest {
