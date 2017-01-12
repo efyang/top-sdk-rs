@@ -1,32 +1,37 @@
 #![allow(non_camel_case_types, non_snake_case)]
+#[macro_use]
+extern crate quick_error;
 use std::ffi::{CString, CStr};
 use std::path::Path;
+
+mod error;
 mod ffi;
 mod urls;
 
 pub use urls::*;
+pub use error::*;
 
 pub struct TaobaoClient {
     ptr: ffi::pTaobaoClient,
 }
 
 impl TaobaoClient {
-    pub fn new<S: AsRef<str>>(url: S, appkey: S, secret: S) -> TaobaoClient {
-        let url = CString::new(url.as_ref()).unwrap();
-        let appkey = CString::new(appkey.as_ref()).unwrap();
-        let secret = CString::new(secret.as_ref()).unwrap();
-        TaobaoClient {
+    pub fn new<S: AsRef<str>>(url: S, appkey: S, secret: S) -> Result<TaobaoClient, TopError> {
+        let url = CString::new(url.as_ref())?;
+        let appkey = CString::new(appkey.as_ref())?;
+        let secret = CString::new(secret.as_ref())?;
+        Ok(TaobaoClient {
             ptr: unsafe {
                 ffi::alloc_taobao_client(url.as_ptr(), appkey.as_ptr(), secret.as_ptr())
             },
-        }
+        })
     }
 
     pub fn execute<S: AsRef<str>>(&mut self,
                                   request: &mut TopRequest,
                                   session: S)
-                                  -> Result<TopResponseIterator, ()> {
-        let session = CString::new(session.as_ref()).unwrap();
+                                  -> Result<TopResponseIterator, TopError> {
+        let session = CString::new(session.as_ref())?;
         let session_ptr = session.into_raw();
         unsafe {
             let response =
@@ -36,7 +41,7 @@ impl TaobaoClient {
             if response.code() == 0 {
                 Ok(TopResponseIterator::from_response(response))
             } else {
-                Err(())
+                Err(TopError::Response(TopResponseError::extract_from_response(&response)))
             }
         }
     }
@@ -56,13 +61,13 @@ pub struct TopRequest {
 
 macro_rules! param_fn {
     ($name:ident) => {
-        pub fn $name<S: AsRef<str>>(&mut self, key: S, value: S) -> Result<(), ()> {
-            let key = CString::new(key.as_ref()).unwrap();
-            let value = CString::new(value.as_ref()).unwrap();
+        pub fn $name<S: AsRef<str>>(&mut self, key: S, value: S) -> Result<(), TopError> {
+            let key = CString::new(key.as_ref())?;
+            let value = CString::new(value.as_ref())?;
             unsafe {
                 match ffi::$name(self.ptr, key.as_ptr(), value.as_ptr()) {
                     0 => Ok(()),
-                    _ => Err(()),
+                    code => Err(TopError::from(code)),
                 }
             }
         }
@@ -74,12 +79,12 @@ impl TopRequest {
         TopRequest { ptr: unsafe { ffi::alloc_top_request() } }
     }
 
-    pub fn set_api_name<S: AsRef<str>>(&mut self, name: S) -> Result<(), ()> {
-        let name = CString::new(name.as_ref()).unwrap();
+    pub fn set_api_name<S: AsRef<str>>(&mut self, name: S) -> Result<(), TopError> {
+        let name = CString::new(name.as_ref())?;
         unsafe {
             match ffi::set_api_name(self.ptr, name.as_ptr()) {
                 0 => Ok(()),
-                _ => Err(()),
+                code => Err(TopError::from(code)),
             }
         }
     }
@@ -121,8 +126,16 @@ impl<'a> TopResponse<'a> {
         }
     }
 
-    fn code(&self) -> ::std::os::raw::c_int {
-        unsafe { (*self.ptr).code }
+    pub fn code(&self) -> i32 {
+        unsafe { (*self.ptr).code as i32 }
+    }
+
+    pub fn sub_code(&self) -> &'a str {
+        unsafe { CStr::from_ptr((*self.ptr).subCode).to_str().unwrap() }
+    }
+
+    pub fn sub_msg(&self) -> &'a str {
+        unsafe { CStr::from_ptr((*self.ptr).subMsg).to_str().unwrap() }
     }
 
     fn ptr(&mut self) -> ffi::pTopResponse {
@@ -131,7 +144,7 @@ impl<'a> TopResponse<'a> {
 }
 
 impl<'a> IntoIterator for TopResponse<'a> {
-    type Item = (&'a str, &'a str);
+    type Item = Result<(&'a str, &'a str), TopError>;
     type IntoIter = TopResponseIterator<'a>;
     fn into_iter(self) -> TopResponseIterator<'a> {
         TopResponseIterator::from_response(self)
@@ -169,14 +182,17 @@ impl<'a> Drop for TopResponseIterator<'a> {
 }
 
 impl<'a> Iterator for TopResponseIterator<'a> {
-    type Item = (&'a str, &'a str);
+    type Item = Result<(&'a str, &'a str), TopError>;
 
-    fn next(&mut self) -> Option<(&'a str, &'a str)> {
+    fn next(&mut self) -> Option<Result<(&'a str, &'a str), TopError>> {
         unsafe {
             let resultitem = ffi::alloc_result_item();
             if ffi::parseNext(self.ptr, resultitem) == 0 {
-                let resultitem = ResultItem::from_raw(resultitem);
-                Some((resultitem.key, resultitem.value))
+                let resultitem = match ResultItem::from_raw(resultitem) {
+                    Err(e) => return Some(Err(e)),
+                    Ok(i) => i,
+                };
+                Some(Ok((resultitem.key, resultitem.value)))
             } else {
                 None
             }
@@ -191,13 +207,15 @@ struct ResultItem<'a> {
 }
 
 impl<'a> ResultItem<'a> {
-    fn from_raw(raw: ffi::pResultItem) -> ResultItem<'a> {
+    fn from_raw(raw: ffi::pResultItem) -> Result<ResultItem<'a>, TopError> {
         unsafe {
-            ResultItem {
-                key: CStr::from_ptr((*raw).key).to_str().unwrap(),
-                value: CStr::from_ptr((*raw).value).to_str().unwrap(),
+            let key = CStr::from_ptr((*raw).key).to_str()?;
+            let value = CStr::from_ptr((*raw).value).to_str()?;
+            Ok(ResultItem {
+                key: key,
+                value: value,
                 ptr: raw,
-            }
+            })
         }
     }
 }
@@ -210,13 +228,14 @@ impl<'a> Drop for ResultItem<'a> {
     }
 }
 
-pub fn set_capath<P: AsRef<Path>>(path: P) {
-    let path = CString::new(path.as_ref().to_str().unwrap()).unwrap();
+pub fn set_capath<P: AsRef<Path>>(path: P) -> Result<(), TopError> {
+    let path = CString::new(path.as_ref().to_str().unwrap())?;
     let path_ptr = path.into_raw();
     unsafe {
         ffi::set_capath(path_ptr);
         CString::from_raw(path_ptr);
     }
+    Ok(())
 }
 
 macro_rules! int_cast_fn {
