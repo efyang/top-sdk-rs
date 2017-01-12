@@ -1,0 +1,12 @@
+[package]
+name = "top-sdk"
+version = "0.1.0"
+authors = ["Edward Yang <edward.yang6771@gmail.com>"]
+build = "build.rs"
+links = "topsdk"
+
+[dependencies]
+
+[build-dependencies]
+libbindgen = "0.1"
+gcc = "0.3"
