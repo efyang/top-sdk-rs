@@ -1,6 +1,7 @@
 #![allow(non_camel_case_types, non_snake_case)]
 #[macro_use]
 extern crate quick_error;
+extern crate curl_sys;
 use std::ffi::{CString, CStr};
 use std::path::Path;
 
