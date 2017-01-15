@@ -11,6 +11,8 @@ mod urls;
 pub use urls::*;
 pub use error::*;
 
+pub type Session = String;
+
 pub struct TaobaoClient {
     ptr: ffi::pTaobaoClient,
 }
@@ -29,17 +31,28 @@ impl TaobaoClient {
 
     pub fn execute<S: AsRef<str>>(&mut self,
                                   request: &mut TopRequest,
-                                  session: S)
-                                  -> Result<TopResponseIterator, TopError> {
-        let session = CString::new(session.as_ref())?;
-        let session_ptr = session.into_raw();
+                                  session: Option<S>)
+                                  -> Result<(Option<String>, TopResponseIterator), TopError> {
+        let session_ptr;
+        if let Some(s) = session {
+            let session = CString::new(s.as_ref())?;
+            session_ptr = session.into_raw();
+        } else {
+            session_ptr = ::std::ptr::null_mut();
+        }
+
         unsafe {
             let response =
                 TopResponse::from_raw(ffi::top_execute(self.ptr, request.ptr(), session_ptr));
-            CString::from_raw(session_ptr);
+            let session_ret = if session_ptr.is_null() {
+                CString::from_raw(session_ptr);
+                None
+            } else {
+                Some(CString::from_raw(session_ptr).into_string()?)
+            };
 
             if response.code() == 0 {
-                Ok(TopResponseIterator::from_response(response))
+                Ok((session_ret, TopResponseIterator::from_response(response)))
             } else {
                 Err(TopError::Response(TopResponseError::extract_from_response(&response)))
             }

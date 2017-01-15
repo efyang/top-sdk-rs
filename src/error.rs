@@ -22,15 +22,19 @@ quick_error! {
     pub enum TopError {
         /// ffi pointer casting error
         StringConversion(err: ::std::ffi::NulError) {
-            from(err: ::std::ffi::NulError) -> (err)
+            from()
         }
         /// UTF8 error
         Utf8Error(err: ::std::str::Utf8Error) {
-            from(err: ::std::str::Utf8Error) -> (err)
+            from()
+        }
+        /// other string conversion error
+        StringInto(err: ::std::ffi::IntoStringError) {
+            from()
         }
         /// bad response
         Response(err: TopResponseError) {
-            from(err: TopResponseError) -> (err)
+            from()
         }
         /// bad parameter
         Parameter(err: isize) {
